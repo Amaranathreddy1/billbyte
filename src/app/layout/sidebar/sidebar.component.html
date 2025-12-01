@@ -1,0 +1,17 @@
+<div class="sidebar">
+
+  <!-- HEADER: LOGO LEFT + TITLE RIGHT -->
+  <div class="sidebar-header">
+    <img src="assets/logo.png" class="logo" alt="logo" />
+    <span class="title">BillByte</span>
+  </div>
+
+  <ul>
+    <li *ngFor="let p of pages"
+        [class.active]="currentPage === p.pageName"
+        (click)="navigateTo(p)">
+      {{ p.pageName }}
+    </li>
+  </ul>
+
+</div>

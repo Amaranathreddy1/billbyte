@@ -1,0 +1,53 @@
+.food-tabs-container {
+  display: flex;
+  gap: 18px;
+  padding: 15px;
+  overflow-x: auto;
+}
+
+.food-tab-card {
+  width: 65px;
+  height: px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 0px 10px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  cursor: pointer;
+  transition: 0.2s ease-out;
+  border: 2px solid transparent;
+}
+
+.food-tab-card:hover {
+  transform: translateY(-3px);
+}
+
+.food-tab-card.active {
+  background: #dff3e8;
+  border: 2px solid #2ecc71;
+  box-shadow: 0 2px 10px rgba(46, 204, 113, 0.2);
+}
+
+.icon-circle {
+  width: 38px;
+  height: 38px;
+  background: #e8f7ef;
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 22px;
+  margin: 0 auto 6px auto;
+  color: #2ecc71;
+}
+
+.tab-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #2b2b2b;
+}
+
+.tab-count {
+  font-size: 12px;
+  color: #777;
+}

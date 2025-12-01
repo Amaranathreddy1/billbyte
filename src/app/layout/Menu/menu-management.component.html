@@ -1,0 +1,21 @@
+<div class="toolbar">
+  <button (click)="addNew()" class="btn-add">+ Add</button>
+  <button (click)="exportExcel()">Export Excel</button>
+
+  <input
+    type="text"
+    placeholder="Search..."
+    (input)="onSearch($event)"
+    class="search-box"
+  />
+</div>
+
+<ag-grid-angular
+  class="ag-theme-alpine"
+  style="width: 100%; height: 600px;"
+  [rowData]="rowData"
+  [columnDefs]="columnDefs"
+  [pagination]="true"
+  [paginationPageSize]="10"
+  (gridReady)="onGridReady($event)">
+</ag-grid-angular>

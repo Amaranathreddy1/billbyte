@@ -1,0 +1,170 @@
+<div class="top-bar">
+  
+  <!-- Sidebar Toggle -->
+  <button class="icon-btn" (click)="returnToTables()">
+    ☰
+  </button>
+
+  <!-- Search Box -->
+  <div class="search-box" *ngIf="!tableMode">
+    <input type="text" placeholder="Search Product here..." (input)="searchProducts($event)">
+    <span class="search-icon">🔍</span>
+  </div>
+
+  <!-- Payment Panel Toggle -->
+  <button class="icon-btn" (click)="togglePaymentPanel()" *ngIf="!tableMode">
+    ☰
+  </button>
+
+</div>
+
+<app-table-serve *ngIf="tableMode"></app-table-serve>
+<!-- ✅ TABLE SERVE MODE SCREEN -->
+<div class="dashboard-container" *ngIf="tableMode">
+
+   <div class="left-section">
+
+      <div class="zone-card">
+        <h2>Non AC</h2>
+        <div class="tables-grid">
+          <div class="table-card"
+               *ngFor="let t of nonAcTables"
+               [ngClass]="getStatusClass(t)"
+               (click)="onTableClick('NonAC', t)">
+            {{ t }}
+          </div>
+
+          <div class="table-card dp-card"
+               (click)="onDpClick('NonAC')">
+            D/P
+          </div>
+        </div>
+      </div>
+
+      <div class="zone-card">
+        <h2>AC</h2>
+        <div class="tables-grid">
+          <div class="table-card"
+               *ngFor="let t of acTables"
+               (click)="onTableClick('AC', t)">
+            {{ t }}
+          </div>
+
+          <div class="table-card dp-card"
+               (click)="onDpClick('AC')">
+            D/P
+          </div>
+        </div>
+      </div> 
+
+  </div> 
+
+  <!-- RIGHT SECTION -->
+  <div class="chart-container" *ngIf="tableMode">
+  <!-- <app-sales-chart></app-sales-chart> if need pls add this line -->
+</div>
+
+</div>
+
+
+<!-- ✅ NORMAL MODE (EXISTING FLOW) -->
+<div class="dashboard-container" *ngIf="showPaymentPanel">
+
+  <!-- ⭐ LEFT SIDE -->
+  <div class="left-section">
+    
+    <!-- Food Types Tabs -->
+    <app-food-tabs (foodTypeChanged)="loadItemsByType($event)"></app-food-tabs>
+
+    <!-- Food Items -->
+    <div class="item-grid">
+      <div class="item-card" *ngFor="let item of menuItems">
+
+        <img [src]="item.imageUrl" class="item-image">
+
+        <div class="item-name">{{ item.itemName }}</div>
+        <div class="item-price">₹{{ item.itemCost }}</div>
+
+        <div class="qty-box">
+          <button (click)="decrease(item)">-</button>
+          <span>{{ item.qty }}</span>
+          <button (click)="increase(item)">+</button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ⭐ RIGHT SIDE (Payment Panel) -->
+  <div class="payment-panel" *ngIf="showPaymentPanel">
+
+    <!-- <app-sales-chart></app-sales-chart> -->
+
+    <h3 class="panel-title">Your Order</h3>
+
+    <div class="payment-list" *ngFor="let c of cart">
+      <div class="p-item">
+        <img [src]="c.imageUrl" class="p-img">
+        <div class="p-text">
+          <strong>{{ c.itemName }}</strong>
+          <small>x{{ c.qty }}</small>
+        </div>
+        <div class="p-price">₹{{ c.qty * c.itemCost }}</div>
+      </div>
+    </div>
+
+    <hr>
+
+    <div class="totals">
+      <div class="row">
+        <span>Sub Total</span>
+        <strong>₹{{ totalAmount }}</strong>
+      </div>
+
+      <div class="row">
+        <span>Tax 5%</span>
+        <strong>₹{{ (totalAmount * 0.05) | number:'1.2-2' }}</strong>
+      </div>
+
+      <div class="row total-final">
+        <span>Total Amount</span>
+        <strong>₹{{ totalAmount + (totalAmount*0.05) }}</strong>
+      </div>
+    </div>
+
+    <div class="order-type-toggle">
+    <button 
+      [class.active]="orderType === 'OrderIn'"
+      (click)="selectOrderType('OrderIn')">
+      Dine in
+    </button>
+    <button 
+      [class.active]="orderType === 'Parcel'"
+      (click)="selectOrderType('Parcel')">
+      Take Away
+    </button>
+    <button 
+      [class.active]="orderType === 'Delivery'"
+      (click)="selectOrderType('Delivery')">
+      Delivery
+    </button>
+  </div>
+
+  <div class="timer-label" *ngIf="orderType === 'OrderIn'">
+    ⏱ {{ timerDisplay }}
+  </div>
+
+    <!-- Payment Buttons -->
+    <div class="payment-buttons">
+      <button class="pay-btn">Cash</button>
+      <button class="pay-btn">Card</button>
+      <button class="pay-btn">QR Code</button>
+    </div>
+
+    <!-- Place order -->
+    <button class="place-order">Place Order</button>
+
+  </div>
+
+</div>

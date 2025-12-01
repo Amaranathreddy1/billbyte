@@ -1,0 +1,15 @@
+<div class="food-tabs-container">
+  <div
+    class="food-tab-card"
+    *ngFor="let type of foodTypes"
+    [class.active]="selectedTypeId === type.foodTypeId"
+    (click)="selectType(type)"
+  >
+    <div class="icon-circle">
+      🍕
+    </div>
+
+    <div class="tab-title">{{ type.foodTypeName }}</div>
+    <div class="tab-count">Items</div>
+  </div>
+</div>

@@ -1,0 +1,63 @@
+.sidebar {
+  width: 190px;
+  background: #ffffff;
+  height: 100vh;
+  padding: 20px 16px;
+  border-right: 1px solid #e6e6e6;
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* LOGO + TITLE ROW */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;        /* spacing between logo & title */
+  margin-bottom: 30px;
+}
+
+/* Small logo of ~2 letter height */
+.sidebar-header .logo {
+  width: 26px;      /* ~ two letters height */
+  height: 26px;
+  object-fit: contain;
+}
+
+/* Title right side */
+.sidebar-header .title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1d1d1d;
+  letter-spacing: 0.5px;
+}
+
+/* MENU LIST */
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sidebar li {
+  padding: 12px 18px;
+  border-radius: 28px;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  color: #2d2d2d;
+}
+
+.sidebar li:hover {
+  background: #eafaf1;
+  color: #0aaa4f;
+}
+
+/* ACTIVE MENU ITEM (Green pill) */
+.sidebar li.active {
+  background: #0aaa4f;
+  color: white;
+  transform: translateX(5px);
+}

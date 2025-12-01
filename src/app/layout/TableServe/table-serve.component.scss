@@ -1,0 +1,52 @@
+.dp-wrapper {
+  margin-top: 25px;
+  display: flex;
+  justify-content: center;
+}
+
+.dp-card {
+  background: #f5f5f5;
+  border-radius: 16px;
+  padding: 18px 32px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 20px;
+  color: #0a8a2a;
+  border: 2px solid #cdebd4;
+}
+
+.dp-card:hover {
+  background: #d8f3df;
+}
+
+.table-card.available {
+  background-color: #eaffea;
+  border: 2px solid #6ccf6c;
+}
+
+.table-card.occupied {
+  background-color: #fff6c4;
+  border: 2px solid #e8b800;
+}
+
+.available-table {
+  background-color: #EFFFF4;
+  border: 2px solid #68C290;
+}
+
+.occupied-table {
+  background-color: #FFF6C2;
+  border: 2px solid #E8B200;
+}
+
+.billed-table {
+  background-color: #FFD6D6;
+  border: 2px solid #D9534F;
+}
+
+.timer-text {
+  font-size: 12px;
+  font-weight: bold;
+  margin-top: 4px;
+  color: #444;
+}

@@ -1,0 +1,20 @@
+.main-layout {
+  display: flex;
+}
+
+.content-area {
+  flex: 1;
+  background: white;
+}
+
+.food-tabs-wrapper {
+  width: 100%;
+  padding: 10px;
+  background: #f5f5f5;
+  text-align: center;
+}
+
+app-sidebar {
+  width: 220px; /* or normal width */
+  flex-shrink: 0;
+}
