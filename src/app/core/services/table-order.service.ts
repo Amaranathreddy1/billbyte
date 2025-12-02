@@ -1,77 +1,48 @@
+// src/app/core/services/table-order.service.ts
 import { Injectable } from '@angular/core';
-import * as signalR from '@microsoft/signalr';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject } from 'rxjs';
+import { Observable } from 'rxjs';
 
-export interface TableStatus {
-  tableNumber: string;
-  zoneType: string;
-  status: 'Available' | 'Occupied' | 'Billed';
-  startTime?: string;
-  endTime?: string;
-  spentTime?: number;
-  totalCost?: number;
+export interface TableOrderItemDto {
+  TableOrderId?: number;
+  TableNumber?: string;
+  ItemId: number;
+  ItemName?: string;
+  ItemCost?: number;
+  ImageUrl?: string;
+  Qty: number;
+}
+
+export interface TableOrderDto {
+  TableOrderId: number;
+  TableNumber: string;
+  ZoneType: string;
+  UserId: number;
+  ItemIds: string;
+  TotalCost: number;
+  StartTime?: string;
+  UserType: string;
+  PaymentMode?: string;
+  Status: string;
+  Items: TableOrderItemDto[];
 }
 
 @Injectable({ providedIn: 'root' })
 export class TableOrderService {
-  private base = 'https://localhost:7015/api/TableOrder';
-  private hubConnection!: signalR.HubConnection;
-
-  private statusSubject = new BehaviorSubject<TableStatus[]>([]);
-  statuses$ = this.statusSubject.asObservable();
+  private base = '/api/TableOrder';
 
   constructor(private http: HttpClient) {}
 
-  // HTTP
-  loadStatus(userId: number) {
-    this.http.get<TableStatus[]>(`${this.base}/status/${userId}`)
-      .subscribe(data => this.statusSubject.next(data));
-  }
-  
-  getOrder(tableName: string) {
-    console.log('table selected ' + tableName);
-
-    return this.http.get<any>(`${this.base}/${tableName}`);
-    }
-
-  createOrder(payload: any) {
-    return this.http.post(`${this.base}`, payload);
+  getOrder(tableNumber: string): Observable<TableOrderDto> {
+    return this.http.get<TableOrderDto>(`${this.base}/${tableNumber}`);
   }
 
-  getTableStatuses(userId: number) {
-    return this.http.get<any>(`${this.base}/status/${userId}`);
-  }
-  
-  updateStatus(tableName: string, status: string) {
-    return this.http.put<any>(`${this.base}/updateStatus`, {
-      tableName,
-      status
-    });
-  }
-  
-  resetStatus(tableName: string) {
-        return this.http.put<any>(`${this.base}/reset/${tableName}`, {});
-    }
-    
-
-  // SIGNALR
-  startConnection() {
-    this.hubConnection = new signalR.HubConnectionBuilder()
-      .withUrl('https://localhost:7015/hubs/table')
-      .withAutomaticReconnect()
-      .build();
-
-    this.hubConnection.start().catch((err :any)=> console.error('SignalR error', err));
-
-    this.hubConnection.on('TableStatusChanged', (status: TableStatus) => {
-      const list = [...this.statusSubject.value];
-      const idx = list.findIndex(t => t.tableNumber === status.tableNumber);
-      if (idx >= 0) list[idx] = status;
-      else list.push(status);
-      this.statusSubject.next(list);
-    });
+  saveOrder(payload: any) {
+    return this.http.post<{ success: boolean; orderId: number }>(`${this.base}/save`, payload);
   }
 
-
+  // helper: update status endpoint (if you have)
+  updateStatus(table: string, status: string) {
+    return this.http.post(`${this.base}/updatestatus`, { table, status });
+  }
 }

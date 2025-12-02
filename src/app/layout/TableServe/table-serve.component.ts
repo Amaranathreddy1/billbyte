@@ -1,73 +1,90 @@
-import { Component, OnInit } from '@angular/core';
+// src/app/layout/TableServe/table-serve.component.ts
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { SignalRService } from '../../core/services/signalr.service';
 import { TableOrderService } from '../../core/services/table-order.service';
 import { Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-table-serve',
   templateUrl: './table-serve.component.html',
   styleUrls: ['./table-serve.component.scss']
 })
-export class TableServeComponent implements OnInit {
+export class TableServeComponent implements OnInit, OnDestroy {
+  nonAcTables: string[] = [];
+  acTables: string[] = [];
+  dpTable = 'D/P';
 
-    nonAcTables: string[] = [];
-    acTables: string[] = [];
-    dpTable: string = "D/P";
-    tableTimers: { [tableName: string]: string } = {};
-    
+  // timer & status structures
+  tableTimers: { [table: string]: string } = {};
+  timerIntervals: { [table: string]: any } = {};
+  startTimes: { [table: string]: number | null } = {}; // epoch ms or null
+  occupiedTables = new Set<string>();
+  tableStatuses: { [table: string]: string } = {};
+
+  private subs: Subscription[] = [];
+
   constructor(
-    private signalRService: SignalRService,
+    private signalR: SignalRService,
     private tableOrderService: TableOrderService,
     private router: Router
-    ) {}
+  ) {}
 
   ngOnInit(): void {
+    this.signalR.startConnection();
 
-    // ✅ Start SignalR live connection
-    this.signalRService.startConnection();
+    // sample: build 10 non-ac and 5 ac (prefer to load from BU settings)
+    this.nonAcTables = Array.from({length:10}, (_,i)=>`T${i+1}`);
+    this.acTables = Array.from({length:5}, (_,i)=>`T${i+1}`);
 
-    // ✅ Listen for live table updates
-    this.signalRService.onTableUpdate(data => {
-      console.log("LIVE TABLE UPDATE:", data);
-      this.loadTables();   // refresh UI
-    });
+    // subscribe to SignalR events
+    this.subs.push(
+      this.signalR.tableTimerUpdate$.subscribe((u) => {
+        this.tableTimers[u.table] = u.timeDisplay;
+        this.occupiedTables.add(u.table);
+      })
+    );
 
-    this.signalRService.onTableTimerUpdate(data => {
-    this.tableTimers[data.table] = data.timeDisplay;
-    });
-
-    this.signalRService.onTableTimerStop(table => {
+    this.subs.push(
+      this.signalR.tableTimerStop$.subscribe((table) => {
+        if (this.timerIntervals[table]) {
+          clearInterval(this.timerIntervals[table]);
+          delete this.timerIntervals[table];
+        }
         delete this.tableTimers[table];
-        });
+        this.occupiedTables.delete(table);
+      })
+    );
 
-    // ✅ Load tables on page load
-    this.loadTables();
+    this.subs.push(
+      this.signalR.tableStatusUpdate$.subscribe(p => {
+        this.tableStatuses[p.table] = p.status;
+        if (p.status === 'Occupied') this.occupiedTables.add(p.table);
+        else this.occupiedTables.delete(p.table);
+      })
+    );
   }
 
-  loadTables() {
-  const userId = 1; // later from auth
+  ngOnDestroy(): void {
+    this.subs.forEach(s => s.unsubscribe());
+    // clear intervals
+    Object.keys(this.timerIntervals).forEach(t => {
+      clearInterval(this.timerIntervals[t]);
+    });
+  }
 
-  this.tableOrderService.getTableStatuses(userId).subscribe({
-    next: (res : any) => {
-      this.nonAcTables = res.nonAc;
-      this.acTables = res.ac;
-      this.dpTable = res.dp;
-    },
-    error: (err : any) => console.error("TABLE LOAD ERROR:", err)
-  });
-}
+  openTable(tableNumber: string) {
+    // navigate to dashboard payment view w/ query param
+    this.router.navigate(['/dashboard'], { queryParams: { table: tableNumber }});
+  }
 
-navigateToDashboard(tableName: string) {
-    console.log('tableName came for open to choose' + tableName)
-  this.router.navigate(['/dashboard'], { queryParams: { table: tableName }});
-}
-openTable(tableNumber: string) {
-    console.log('tableNumber came for open to choose' + tableNumber)
-
-  this.router.navigate(['/dashboard'], { queryParams: { table: tableNumber }});
-}
-getStatusClass(table: string) {
-  if (this.tableTimers[table]) return 'occupied';
-  return 'available';
-}
+  // view helpers
+  getStatusClass(table: string) {
+    const status = this.tableStatuses[table] || (this.occupiedTables.has(table) ? 'Occupied' : 'Available');
+    return {
+      'available-table': status === 'Available',
+      'occupied-table': status === 'Occupied',
+      'billed-table': status === 'Billed'
+    };
+  }
 }

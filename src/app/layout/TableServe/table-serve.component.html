@@ -1,36 +1,34 @@
-<!-- NON-AC TABLES -->
-<!-- <div class="table-card"
-     *ngFor="let table of nonAcTables"
-     [ngClass]="{'occupied': occupiedTables.has(table.name)}"
-     (click)="openTable(table.name)">
-
-    <div>{{ table.name }}</div>
-
-    <div class="timer-text" *ngIf="occupiedTables.has(table.name)">
-      {{ tableTimers[table.name] || '00:00:00' }}
+<!-- src/app/layout/TableServe/table-serve.component.html -->
+<div class="zone-card">
+  <h2>Non AC</h2>
+  <div class="tables-grid">
+    <div class="table-card"
+         *ngFor="let t of nonAcTables"
+         [ngClass]="getStatusClass(t)"
+         (click)="openTable(t)">
+      <div class="table-name">{{ t }}</div>
+      <div class="timer-badge" *ngIf="tableTimers[t]">
+        ⏱ {{ tableTimers[t] }}
+      </div>
     </div>
 
-</div> -->
-
-
-<!-- AC TABLES -->
-<!-- <div class="table-card"
-     *ngFor="let table of acTables"
-     [ngClass]="{'occupied': occupiedTables.has(table.name)}"
-     (click)="openTable(table.name)">
-
-    <div>{{ table.name }}</div>
-
-    <div class="timer-text" *ngIf="occupiedTables.has(table.name)">
-      {{ tableTimers[table.name] || '00:00:00' }}
-    </div>
-
-</div> -->
-
-
-<!-- <div class="dp-wrapper">
-  <div class="table-card dp-card" (click)="openTable('DP')">
-    D / P
+    <div class="table-card dp-card" (click)="openTable('DP')">D/P</div>
   </div>
-</div> -->
+</div>
 
+<div class="zone-card">
+  <h2>AC</h2>
+  <div class="tables-grid">
+    <div class="table-card"
+         *ngFor="let t of acTables"
+         [ngClass]="getStatusClass(t)"
+         (click)="openTable(t)">
+      <div class="table-name">{{ t }}</div>
+      <div class="timer-badge" *ngIf="tableTimers[t]">
+        ⏱ {{ tableTimers[t] }}
+      </div>
+    </div>
+
+    <div class="table-card dp-card" (click)="openTable('DP')">D/P</div>
+  </div>
+</div>

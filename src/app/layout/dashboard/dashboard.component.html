@@ -18,62 +18,81 @@
 
 </div>
 
-<app-table-serve *ngIf="tableMode"></app-table-serve>
-<!-- ✅ TABLE SERVE MODE SCREEN -->
+<!-- TABLE SERVE MODE -->
 <div class="dashboard-container" *ngIf="tableMode">
 
-   <div class="left-section">
+  <div class="left-section">
 
+      <!-- NON AC BLOCK -->
       <div class="zone-card">
         <h2>Non AC</h2>
         <div class="tables-grid">
+
           <div class="table-card"
                *ngFor="let t of nonAcTables"
                [ngClass]="getStatusClass(t)"
                (click)="onTableClick('NonAC', t)">
-            {{ t }}
+            
+            <div>{{ t }}</div>
+
+            <!-- TIMER UNDER TABLE -->
+            <div class="timer-text" *ngIf="tableTimers[t]">
+              ⏱ {{ tableTimers[t] }}
+            </div>
+
           </div>
 
-          <div class="table-card dp-card"
-               (click)="onDpClick('NonAC')">
+          <!-- Delivery / Parcel -->
+          <div class="table-card dp-card" (click)="onDpClick('NonAC')">
             D/P
           </div>
+
         </div>
       </div>
 
+      <!-- AC BLOCK -->
       <div class="zone-card">
         <h2>AC</h2>
         <div class="tables-grid">
+
           <div class="table-card"
                *ngFor="let t of acTables"
+               [ngClass]="getStatusClass(t)"
                (click)="onTableClick('AC', t)">
-            {{ t }}
+            
+            <div>{{ t }}</div>
+
+            <div class="timer-text" *ngIf="tableTimers[t]">
+              ⏱ {{ tableTimers[t] }}
+            </div>
+
           </div>
 
-          <div class="table-card dp-card"
-               (click)="onDpClick('AC')">
+          <div class="table-card dp-card" (click)="onDpClick('AC')">
             D/P
           </div>
+
         </div>
-      </div> 
+      </div>
 
-  </div> 
+  </div>
 
-  <!-- RIGHT SECTION -->
+  <!-- RIGHT CHART -->
   <div class="chart-container" *ngIf="tableMode">
-  <!-- <app-sales-chart></app-sales-chart> if need pls add this line -->
-</div>
+    <!-- Uncomment if you want chart -->
+    <app-sales-chart></app-sales-chart>
+  </div>
 
 </div>
 
 
-<!-- ✅ NORMAL MODE (EXISTING FLOW) -->
+<!-- PAYMENT MODE -->
 <div class="dashboard-container" *ngIf="showPaymentPanel">
 
-  <!-- ⭐ LEFT SIDE -->
+  <!-- LEFT SIDE -->
   <div class="left-section">
-    
-    <!-- Food Types Tabs -->
+
+    <!-- Food Types -->
     <app-food-tabs (foodTypeChanged)="loadItemsByType($event)"></app-food-tabs>
 
     <!-- Food Items -->
@@ -93,13 +112,10 @@
 
       </div>
     </div>
-
   </div>
 
-  <!-- ⭐ RIGHT SIDE (Payment Panel) -->
-  <div class="payment-panel" *ngIf="showPaymentPanel">
-
-    <!-- <app-sales-chart></app-sales-chart> -->
+  <!-- PAYMENT PANEL -->
+  <div class="payment-panel">
 
     <h3 class="panel-title">Your Order</h3>
 
@@ -133,36 +149,43 @@
       </div>
     </div>
 
+    <!-- ORDER TYPE -->
     <div class="order-type-toggle">
-    <button 
-      [class.active]="orderType === 'OrderIn'"
-      (click)="selectOrderType('OrderIn')">
-      Dine in
-    </button>
-    <button 
-      [class.active]="orderType === 'Parcel'"
-      (click)="selectOrderType('Parcel')">
-      Take Away
-    </button>
-    <button 
-      [class.active]="orderType === 'Delivery'"
-      (click)="selectOrderType('Delivery')">
-      Delivery
-    </button>
-  </div>
+  <!-- DineIn disabled until cart has at least one item -->
+  <button
+    [class.active]="orderType === 'OrderIn'"
+    (click)="selectOrderType('OrderIn')"
+    [disabled]="cart.length === 0">
+    Dine in
+  </button>
 
-  <div class="timer-label" *ngIf="orderType === 'OrderIn'">
-    ⏱ {{ timerDisplay }}
-  </div>
+  <button
+    [class.active]="orderType === 'Parcel'"
+    (click)="selectOrderType('Parcel')"
+    [disabled]="cart.length === 0">
+    Take Away
+  </button>
+
+  <button
+    [class.active]="orderType === 'Delivery'"
+    (click)="selectOrderType('Delivery')"
+    [disabled]="cart.length === 0">
+    Delivery
+  </button>
+</div>
+
+    <!-- TIMER IN PAYMENT PANEL -->
+    <div class="timer-label" *ngIf="orderType === 'OrderIn'">
+      ⏱ {{ timerDisplay }}
+    </div>
 
     <!-- Payment Buttons -->
     <div class="payment-buttons">
-      <button class="pay-btn">Cash</button>
-      <button class="pay-btn">Card</button>
-      <button class="pay-btn">QR Code</button>
-    </div>
+  <button class="pay-btn" [disabled]="!orderType">Cash</button>
+  <button class="pay-btn" [disabled]="!orderType">Card</button>
+  <button class="pay-btn" [disabled]="!orderType">QR Code</button>
+</div>
 
-    <!-- Place order -->
     <button class="place-order">Place Order</button>
 
   </div>

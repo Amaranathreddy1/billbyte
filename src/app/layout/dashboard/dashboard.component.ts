@@ -9,23 +9,25 @@ import { DashboardAnalyticsService } from '../../core/services/dashboard-analyti
 import { Chart } from 'chart.js/auto';
 import { BuSettingsService, DashboardBuSettings } from '../../core/services/bu-settings.service';
 import { TableStatusService } from '../../core/services/table-status.service';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TableOrderService } from '../../core/services/table-order.service';
-import { Router } from '@angular/router';
+import { SignalRService } from '../../core/services/signalr.service';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule,FoodTabsComponent,SalesChartComponent],
+  imports: [CommonModule, FoodTabsComponent, SalesChartComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })
-export class DashboardComponent {
- menuItems: any[] = [];
+export class DashboardComponent implements OnInit {
+
+  menuItems: any[] = [];
   selectedFoodTypeId: number | null = null;
 
   cart: any[] = [];
   totalAmount = 0;
+
   tableMode: boolean = true;
   showPaymentPanel: boolean = false;
   selectedTable: string | null = null;
@@ -35,16 +37,29 @@ export class DashboardComponent {
 
   private currentUserId = 1;
 
-  tableStatuses: any = {};
-  
-  currentTableNumber: string | null = null;  // set from route when table clicked
-  orderType: 'OrderIn' | 'Delivery' | 'Parcel' = 'OrderIn';
-  paymentMode: 'Cash' | 'Card' | 'QR' = 'Cash';
-  orderStartTime: Date | null = null;       // for timer
+  tableStatuses: any = {}; // Available / Occupied / Billed
+
+  // TIMER SYSTEM (NEW)
+  tableTimers: { [table: string]: string } = {};  
+  timerIntervals: { [table: string]: any } = {};  
+  occupiedTables = new Set<string>();  
+
+  orderType: 'OrderIn' | 'Delivery' | 'Parcel' | null = null;
+  orderStartTime: Date | null = null;
   timerDisplay = '00:00:00';
   timerHandle: any;
-  showFoodTypes = false;
-  isTableServeMode = true;
+
+  tableData: {
+  [table: string]: {
+    cart: any[];
+    orderType: 'OrderIn' | 'Delivery' | 'Parcel' | null;
+    timer: string;
+    startTime: number | null;
+    subtotal: number;
+    tax: number;
+    total: number;
+  }
+} = {};
 
   constructor(
     private menuService: MenuService,
@@ -55,388 +70,323 @@ export class DashboardComponent {
     private tableStatusService: TableStatusService,
     private route: ActivatedRoute,
     private tableOrderService: TableOrderService,
-    private router: Router
+    private router: Router,
+    private signalR: SignalRService
   ) {}
-  
+
   ngOnInit(): void {
 
-  // ✅ Load food types first, then default items
-  this.foodTypeService.getFoodTypes().subscribe(types => {
-    if (types.length > 0) {
-      this.selectedFoodTypeId = types[0].foodTypeId;
-      this.loadItemsByType(this.selectedFoodTypeId);
-    }
-  });
+    this.signalR.startConnection();
 
-  // ✅ Load chart only once
-  this.loadChart();
+    // When SignalR timer updates come from backend
+    this.signalR.onTableTimerUpdate((update: any) => {
+      this.tableTimers[update.table] = update.timeDisplay;
+      this.occupiedTables.add(update.table);
+    });
 
-  // ✅ Load business settings (TableServe vs Normal mode)
-  this.loadSettingsAndInit();
+    this.signalR.onTableTimerStop((table: string) => {
+      delete this.tableTimers[table];
+      this.occupiedTables.delete(table);
+    });
 
-  // ✅ Detect selected table from URL
-  this.route.queryParams.subscribe(params => {
+    // Load Food Types
+    this.foodTypeService.getFoodTypes().subscribe(types => {
+      if (types.length > 0) {
+        this.selectedFoodTypeId = types[0].foodTypeId;
+        this.loadItemsByType(this.selectedFoodTypeId);
+      }
+    });
 
-  if (params['table']) {
+    this.loadChart();
+    this.loadSettingsAndInit();
 
-    this.selectedTable = params['table'];
+    this.route.queryParams.subscribe(params => {
+      if (params['table']) {
+        this.selectedTable = params['table'];
+        this.tableMode = false;
+        this.showPaymentPanel = true;
+        // this.loadOrderForTable(params['table']);
+      }
+    });
 
-    this.tableMode = false;
-    this.showPaymentPanel = true;
-
-    this.loadOrderForTable(this.selectedTable ?? '');
+    this.foodTypeSelection.selectedType$.subscribe(id => {
+      this.selectedFoodTypeId = id;
+      this.loadItemsByType(id);
+    });
   }
-});
 
-  // ✅ React when user clicks different food type tab
-  this.foodTypeSelection.selectedType$.subscribe(id => {
-    this.selectedFoodTypeId = id;
-    this.loadItemsByType(id);
-  });
+
+  // ----------------------------
+  // TABLE TIMER START
+  // ----------------------------
+  startTableTimer(table: string) {
+  if (this.timerIntervals[table]) return;
+
+  const startTime = Date.now();
+
+  this.timerIntervals[table] = setInterval(() => {
+    const diff = Date.now() - startTime;
+
+    const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+    const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+    const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+
+    const timeString = `${h}:${m}:${s}`;
+
+    this.tableTimers[table] = timeString;
+
+    // broadcast to all screens
+    this.signalR.sendTableTimerUpdate(table, timeString);
+
+  }, 1000);
+
+  this.occupiedTables.add(table);
 }
 
 
-  loadMenuItems() {
-    if (!this.selectedFoodTypeId) return;
+  // ----------------------------
+  // TABLE TIMER STOP
+  // ----------------------------
+  stopTableTimer(table: string) {
+  if (this.timerIntervals[table]) {
+    clearInterval(this.timerIntervals[table]);
+    delete this.timerIntervals[table];
+    delete this.tableTimers[table];
 
-    this.menuService.getByFoodType(this.selectedFoodTypeId)
-      .subscribe(items => this.menuItems = items);
+    this.signalR.sendTableTimerStop(table);
+    this.occupiedTables.delete(table);
   }
+}
 
-  selectType(id: number) {
-    this.selectedFoodTypeId = id;
-    this.loadMenuItems();
+placeOrder() {
+  const table = this.selectedTable!;
+  
+  // STOP timer
+  this.stopTableTimer(table);
+
+  // CLEAR table saved data
+  delete this.tableData[table];
+
+  // RESET UI
+  this.cart = [];
+  this.totalAmount = 0;
+  this.timerDisplay = "00:00:00";
+  this.orderType = null;
+
+  // MAKE TABLE GREEN AVAILABLE AGAIN
+  this.tableStatusService.updateStatus(table, 'Available').subscribe(() => {
+    console.log("Table reset to Available");
+  });
+
+  // GO BACK TO TABLE SCREEN
+  this.returnToTables();
+}
+
+
+  // ----------------------------
+  // FOOD MENU + CART
+  // ----------------------------
+  loadItemsByType(typeId: number) {
+  console.log("FoodType Received:", typeId);
+
+  this.menuService.getByFoodType(typeId).subscribe({
+    next: res => {
+      // keep qty from existing cart so selection remains
+      this.menuItems = res.map(item => {
+        const inCart = this.cart.find(c => c.itemId === item.itemId);
+        return { ...item, qty: inCart ? inCart.qty : 0 };
+      });
+    },
+    error: err => console.error(err)
+  });
+}
+
+  calculateTotal() {
+    this.totalAmount = this.cart.reduce((s, i) => s + (i.qty * i.itemCost), 0);
   }
 
   increase(item: any) {
   item.qty = (item.qty || 0) + 1;
 
   let exist = this.cart.find(c => c.itemId === item.itemId);
+  if (exist) exist.qty = item.qty;
+  else this.cart.push({ ...item });
 
-  if (exist) {
-    exist.qty = item.qty;
+  this.updateTableTotals();
+}
+
+decrease(item: any) {
+  if (!item.qty) return;
+  item.qty--;
+
+  if (item.qty === 0) {
+    this.cart = this.cart.filter(c => c.itemId !== item.itemId);
+  }
+
+  this.updateTableTotals();
+}
+
+updateTableTotals() {
+  const subtotal = this.cart.reduce((sum, i) => sum + (i.qty * i.itemCost), 0);
+  const tax = +(subtotal * 0.05).toFixed(2);
+  const total = subtotal + tax;
+
+  this.totalAmount = subtotal;
+
+  // save inside tableData
+  const t = this.selectedTable!;
+  this.tableData[t].cart = this.cart;
+  this.tableData[t].subtotal = subtotal;
+  this.tableData[t].tax = tax;
+  this.tableData[t].total = total;
+}
+
+
+  // ----------------------------
+  // TABLE CLICK → GO TO ORDER SCREEN
+  // ----------------------------
+  onTableClick(zone: string, table: string) {
+
+  this.selectedTable = table;
+
+  // If table is new → create default storage
+  if (!this.tableData[table]) {
+    this.tableData[table] = {
+      cart: [],
+      orderType: null,
+      timer: '00:00:00',
+      startTime: null,
+      subtotal: 0,
+      tax: 0,
+      total: 0
+    };
+  }
+
+  // Load saved data into UI
+  this.cart = this.tableData[table].cart;
+  this.orderType = this.tableData[table].orderType;
+  this.timerDisplay = this.tableData[table].timer;
+  this.totalAmount = this.tableData[table].subtotal;
+
+  // Show payment panel
+  this.tableMode = false;
+  this.showPaymentPanel = true;
+}
+
+
+  // ----------------------------
+  // ORDER TYPE (DineIn → START TIMER)
+  // ----------------------------
+  selectOrderType(type: 'OrderIn' | 'Delivery' | 'Parcel') {
+
+  if (!this.cart.length) return;  // must select items first
+
+  this.orderType = type;
+
+  const t = this.selectedTable!;
+  this.tableData[t].orderType = type;
+
+  if (type === 'OrderIn') {
+    this.startTableTimer(t);
   } else {
-    this.cart.push({ ...item });
+    this.stopTableTimer(t);
   }
+}
 
-  this.calculateTotal();
-  }
-
-  decrease(item: any) {
-    if (!item.qty || item.qty === 0) return;
-
-    item.qty--;
-
-    if (item.qty === 0) {
-      this.cart = this.cart.filter(c => c.itemId !== item.itemId);
-    } else {
-      let exist = this.cart.find(c => c.itemId === item.itemId);
-      if (exist) exist.qty = item.qty;
-    }
-
-    this.calculateTotal();
-  }
-
-  calculateTotal() {
-    this.totalAmount = this.cart.reduce((sum, i) => sum + (i.qty * i.itemCost), 0);
-  }
-  loadItemsByType(typeId: number) {
-    console.log("FoodType Received:", typeId);
-
-    this.menuService.getByFoodType(typeId).subscribe({
-      next: res => this.menuItems = res,
-      error: err => console.error(err)
-    });
-  }
-  increaseQty(item: any) {
-    item.qty = (item.qty || 0) + 1;
-  }
-
-  decreaseQty(item: any) {
-    if (item.qty > 0) item.qty--;
-  }
-
-  toggleSidebar() {
-    console.log("Sidebar toggle clicked!");
-  }
 
   returnToTables() {
-  this.showPaymentPanel = false;
-  this.tableMode = true;
-  this.cart = [];
-  //this.orderType = null;
-  //this.stopTimer();
-
-  this.router.navigate(['/dashboard'], { queryParams: {} });
-}
-
-  togglePaymentPanel() {
-    this.showPaymentPanel = !this.showPaymentPanel;
-  }
-
-  searchProducts(event: any) {
-    const text = event.target.value.toLowerCase();
-    console.log("Searching:", text);
-  }
-  loadInitialDashboardView() {
-  // If table mode detect and hide food UI
-  if (this.selectedTable) {
-    console.log('showPaymentPanel mode On ' + this.showPaymentPanel)
-    this.showFoodTypes = true;
-    this.showPaymentPanel = true;
-  } else {
-    this.showFoodTypes = false;
     this.showPaymentPanel = false;
+    this.tableMode = true;
+    this.router.navigate(['/dashboard'], { queryParams: {} });
   }
-}
+
+
+  // ----------------------------
+  // TABLE STATUS COLORS
+  // ----------------------------
+  getStatusClass(table: string) {
+    if (this.occupiedTables.has(table)) return 'occupied';
+    return 'available';
+  }
+
+
+  // ----------------------------
+  // ORDER LOAD
+  // ----------------------------
+  // loadOrderForTable(table: string) {
+  //   this.tableOrderService.getOrder(table).subscribe(order => {
+
+  //     if (!order || !order.items) {
+  //       this.cart = [];
+  //       this.calculateTotal();
+  //       return;
+  //     }
+
+  //     this.cart = order.items.map((o: any) => ({
+  //       itemId: o.itemId,
+  //       itemName: o.itemName,
+  //       itemCost: o.itemCost,
+  //       imageUrl: o.imageUrl,
+  //       qty: o.qty
+  //     }));
+
+  //     this.calculateTotal();
+  //   });
+  // }
+
+  // ----------------------------
+  // CHART
+  // ----------------------------
+  loadChart() {
+    this.dashboardService.getSalesLast7Days().subscribe(data => this.renderChart(data));
+  }
 
   renderChart(data: any) {
-  const labels = data.labels;   // ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
-  const dineIn = data.dineIn;   // [20,40,35,50,60,30,40]
-  const delivery = data.delivery;
-  const parcel = data.parcel;
+    const canvas = document.getElementById('orderChart') as HTMLCanvasElement;
+    if (!canvas) return;
 
-  const canvas = document.getElementById('orderChart') as HTMLCanvasElement;
-
-  if (!canvas) return;
-
-  new Chart(canvas, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: 'Dine In',
-          data: dineIn,
-          borderColor: '#4e73df',
-          backgroundColor: 'rgba(78,115,223,0.2)',
-          borderWidth: 3,
-          tension: 0.4,
-        },
-        {
-          label: 'Delivery',
-          data: delivery,
-          borderColor: '#1cc88a',
-          backgroundColor: 'rgba(28,200,138,0.2)',
-          borderWidth: 3,
-          tension: 0.4,
-        },
-        {
-          label: 'Parcel',
-          data: parcel,
-          borderColor: '#f6c23e',
-          backgroundColor: 'rgba(246,194,62,0.2)',
-          borderWidth: 3,
-          tension: 0.4,
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'top' }
-      },
-      scales: {
-        y: {
-          beginAtZero: true
-        }
+    new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: data.labels,
+        datasets: [
+          { label:'Dine In', data:data.dineIn, borderColor:'#4e73df' },
+          { label:'Delivery', data:data.delivery, borderColor:'#1cc88a' },
+          { label:'Parcel', data:data.parcel, borderColor:'#f6c23e' }
+        ]
       }
-    }
-  });
-}
+    });
+  }
 
-private loadSettingsAndInit() {
-    this.buSettings.getDashboardSettings(this.currentUserId).subscribe({
-      next: (settings: DashboardBuSettings) => {
-        this.tableMode = settings.isTableServeNeeded;
-
-        if (this.isTableServeMode) {
-          this.tableMode = true;
-          this.showPaymentPanel = false;
-        } else {
-          this.tableMode = false;
-          this.showPaymentPanel = true;
-        }
-
-        if (this.tableMode) {
-          // build table names: T1..Tn and D/P
-          this.nonAcTables = this.buildTableNames(settings.nonAcTables);
-          this.acTables    = this.buildTableNames(settings.acTables);
-          // in table mode we DO NOT load menu items / payment panel
-        } else {
-          // normal mode: load food items etc.
-          this.loadItemsByType(1); // or default food-type
-        }
-      },
-      error: err => console.error('BU settings error:', err)
+  loadSettingsAndInit() {
+    this.buSettings.getDashboardSettings(this.currentUserId).subscribe(settings => {
+      this.tableMode = settings.isTableServeNeeded;
+      this.nonAcTables = this.buildTableNames(settings.nonAcTables);
+      this.acTables = this.buildTableNames(settings.acTables);
     });
   }
 
   private buildTableNames(count: number): string[] {
-    const arr: string[] = [];
-    for (let i = 1; i <= count; i++) {
-      arr.push(`T${i}`);
-    }
-    return arr;
+    return Array.from({ length: count }, (_, i) => `T${i + 1}`);
   }
 
-  // TABLE MODE click handlers
-  onTableClick(zone: string, table: string) {
+  // 🔍 Called from search box
+searchProducts(event: any) {
+  const text = event.target.value?.toLowerCase() ?? '';
+  // Later: filter products here
+  console.log("Searching:", text);
+}
 
-  console.log('✅ Table Clicked:', table);
+// 🧾 Toggles payment panel icon
+togglePaymentPanel() {
+  this.showPaymentPanel = !this.showPaymentPanel;
+}
 
-  this.tableStatusService.updateStatus(table, 'Occupied').subscribe(() => {
-
-    // switch to food ordering view
-    this.tableMode = false;
-    this.showPaymentPanel = true;
-
-    // store selected table
-    this.selectedTable = table;
-
-    // load any existing order
-    this.loadOrderForTable(table);
-
-    // load items for default food type
-    this.selectedFoodTypeId = this.selectedFoodTypeId ?? 1;
-    this.loadItemsByType(this.selectedFoodTypeId);
-
-  });
+// 🟦 D/P button click
+onDpClick(zone: 'NonAC' | 'AC') {
+  console.log("D/P selected in zone:", zone);
+  // Later: handle Delivery/Parcel actions here
 }
 
 
-completeOrder(table: string) {
-  this.tableStatusService.updateStatus(table, 'Billed').subscribe(() => {
-    this.loadTableStatuses();
-  });
 }
-resetTable(table: string) {
-  this.tableStatusService.resetStatus(table).subscribe(() => {
-    this.loadTableStatuses();
-  });
-}
-
-  onDpClick(zone: 'NonAC' | 'AC') {
-    console.log('D/P selected in', zone);
-    // later: handle Delivery/Parcel from that side
-  }
-
-  loadChart() {
-  this.dashboardService.getSalesLast7Days().subscribe({
-    next: (data) => {
-      console.log("Chart API Data:", data);
-      this.renderChart(data);
-    },
-    error: (err) => console.error("Chart error:", err)
-  });
-}
-
-
-loadTableStatuses() {
-  const userId = 1;
-  this.tableStatusService.getTableStatuses(userId).subscribe(res => {
-  this.tableStatuses = res;
-});
-}
-getTableStatus(tableName: string) {
-  return this.tableStatuses[tableName] ?? 'Available';
-}
-
-getStatusClass(tableName: string) {
-  const status = this.getTableStatus(tableName);
-
-  switch(status) {
-    case 'Occupied': return 'occupied';
-    case 'Billed': return 'billed';
-    default: return 'available';
-  }
-}
-
-selectOrderType(type: 'OrderIn' | 'Delivery' | 'Parcel') {
-  this.orderType = type;
-
-  if (type === 'OrderIn') {
-    if (!this.orderStartTime) {
-      this.orderStartTime = new Date();
-      this.startLocalTimer();
-    }
-  } else {
-    // Delivery / Parcel -> no table timer required
-    this.stopLocalTimer();
-    this.orderStartTime = null;
-    this.timerDisplay = '00:00:00';
-  }
-}
-
-startLocalTimer() {
-  this.stopLocalTimer();
-  this.timerHandle = setInterval(() => {
-    if (!this.orderStartTime) return;
-    const diff = (Date.now() - this.orderStartTime.getTime()) / 1000;
-    const h = Math.floor(diff / 3600);
-    const m = Math.floor((diff % 3600) / 60);
-    const s = Math.floor(diff % 60);
-    this.timerDisplay = 
-      `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-  }, 1000);
-}
-
-stopLocalTimer() {
-  if (this.timerHandle) {
-    clearInterval(this.timerHandle);
-    this.timerHandle = null;
-  }
-}
-
-// called when Place Order button is clicked
-placeOrder() {
-  const itemsStr = this.cart
-    .map(c => `${c.itemId}:${c.qty}`)
-    .join(',');
-
-  const payload = {
-    tableNumber: this.currentTableNumber ?? 'D/P',
-    zoneType: this.currentTableNumber ? 'NonAC' : 'DP',  // you can adjust
-    userId: 1,
-    itemIds: itemsStr,
-    totalCost: this.totalAmount,
-    startTime: (this.orderStartTime ?? new Date()).toISOString(),
-    paymentMode: this.paymentMode,
-    userType: this.orderType
-  };
-
-  this.tableOrderService.createOrder(payload).subscribe({
-    next: () => {
-      this.stopLocalTimer();
-      // clear cart, maybe navigate back to table screen
-    },
-    error: (err: any) => console.error('Order save error', err)
-  });
-}
-
-loadOrderForTable(table: string) {
-
-  this.loadItemsByType(this.selectedFoodTypeId!);
-
-  this.tableOrderService.getOrder(table).subscribe(order => {
-
-    if (!order || !order.items) {
-      this.cart = [];
-      this.calculateTotal();
-      return;
-    }
-
-    this.cart = order.items.map((o: any) => ({
-      itemId: o.itemId,
-      itemName: o.itemName,
-      itemCost: o.itemCost,
-      imageUrl: o.imageUrl,
-      qty: o.qty
-    }));
-
-    this.calculateTotal();
-  });
-}
-
-}
-

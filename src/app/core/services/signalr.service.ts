@@ -1,58 +1,66 @@
 import { Injectable } from '@angular/core';
-import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr';
+import * as signalR from '@microsoft/signalr';
+import {Subject} from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class SignalRService {
+  private hubConnection!: signalR.HubConnection;
 
-  private hubConnection!: HubConnection;
+  public tableTimerUpdate$ = new Subject<{ table: string; timeDisplay: string }>();
+  public tableTimerStop$ = new Subject<string>();
+  public tableStatusUpdate$ = new Subject<{ table: string; status: string }>();
 
-    tableTimerUpdateListener: ((data: any) => void) | null = null;
-    tableTimerStopListener: ((table: string) => void) | null = null;
 
   startConnection() {
-    this.hubConnection = new HubConnectionBuilder()
+    if (this.hubConnection && this.hubConnection.state === signalR.HubConnectionState.Connected) return;
+
+    this.hubConnection = new signalR.HubConnectionBuilder()
       .withUrl('https://localhost:7015/tableHub')
       .withAutomaticReconnect()
       .build();
 
     this.hubConnection
       .start()
-      .then(() => console.log('SignalR Connected'))
-      .catch(err => console.log('SignalR Error: ', err));
-
-      this.hubConnection.on("ReceiveTableTimerUpdate", (data) => {
-        if (this.tableTimerUpdateListener) {
-            this.tableTimerUpdateListener(data);
-        }
-        });
-
-        this.hubConnection.on("ReceiveTableTimerStop", (table) => {
-        if (this.tableTimerStopListener) {
-            this.tableTimerStopListener(table);
-        }
-        });
+      .then(() => console.log('✅ SignalR connected'))
+      .catch(err => console.error('SignalR error', err));
   }
 
-  onTableUpdate(callback: (data: any) => void) {
-    this.hubConnection.on('TableStatusUpdated', callback);
+  // ---- Client listeners ----
+  onTableTimerUpdate(callback: (data: any) => void) {
+    if (!this.hubConnection) return;
+    this.hubConnection.on('ReceiveTableTimerUpdate', (data: any) => callback(data));
   }
 
- onTableTimerUpdate(callback: (data: any) => void) {
-    this.hubConnection.on("TableTimerUpdate", callback);
-    }
+  onTableTimerStop(callback: (table: string) => void) {
+    if (!this.hubConnection) return;
+    this.hubConnection.on('ReceiveTableTimerStop', (table: string) => callback(table));
+  }
 
-    onTableTimerStop(callback: (table: string) => void) {
-    this.hubConnection.on("TableTimerStop", callback);
-    }
+  onTableUpdate(callback: (payload: any) => void) {
+    if (!this.hubConnection) return;
+    this.hubConnection.on('ReceiveTableUpdate', (payload: any) => callback(payload));
+  }
 
-    sendTableTimerUpdate(table: string, timeDisplay: string) {
-    this.hubConnection.invoke("BroadcastTableTimerUpdate", { table, timeDisplay });
-    }
+  // ---- Invokes (client -> server) ----
+  sendTableTimerUpdate(table: string, timeDisplay: string) {
+    if (!this.hubConnection) return;
+    return this.hubConnection.invoke('BroadcastTableTimerUpdate', table, timeDisplay)
+      .catch(err => console.error('sendTableTimerUpdate error', err));
+  }
 
-    sendTableTimerStop(table: string) {
-    this.hubConnection.invoke("BroadcastTableTimerStop", table);
-    }
-    sendTableUpdate(table: string, status: string) {
-    this.hubConnection.invoke("SendTableUpdate", { table, status });
-    }
+  sendTableTimerStop(table: string) {
+    if (!this.hubConnection) return;
+    return this.hubConnection.invoke('BroadcastTableTimerStop', table)
+      .catch(err => console.error('sendTableTimerStop error', err));
+  }
+
+  sendTableUpdate(table: string, status: string) {
+    if (!this.hubConnection) return;
+    return this.hubConnection.invoke('BroadcastTableUpdate', table, status)
+      .catch(err => console.error('sendTableUpdate error', err));
+  }
+  sendTableStatusUpdate(table: string, status: string) {
+    if (!this.hubConnection) return;
+    this.hubConnection.invoke("UpdateTableStatus", table, status);
+  }
 }
